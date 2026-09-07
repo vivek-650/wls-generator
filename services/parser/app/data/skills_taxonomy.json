@@ -1,0 +1,75 @@
+{
+  "Languages & Frameworks": [
+    "Python", "Java", "JavaScript", "TypeScript", "Swift", "Objective-C", "Kotlin", "Go", "Golang",
+    "C", "C++", "C#", "PHP", "Ruby", "Rust", "Scala", "Perl", "R", "MATLAB", "Dart", "Elixir",
+    "Haskell", "Clojure", "Groovy", "Lua", "Shell Scripting", "Bash", "PowerShell", "VB.NET",
+    "Django", "FastAPI", "Flask", "Spring", "Spring Boot", ".NET", ".NET Core", "ASP.NET",
+    "Ruby on Rails", "Laravel", "Symfony", "Express.js", "NestJS", "Node.js", "Deno"
+  ],
+  "Frontend": [
+    "React", "React Native", "Angular", "AngularJS", "Vue.js", "Svelte", "Next.js", "Nuxt.js",
+    "Redux", "MobX", "HTML", "HTML5", "CSS", "CSS3", "Sass", "SCSS", "LESS", "Tailwind CSS",
+    "Bootstrap", "Material UI", "Ant Design", "jQuery", "Webpack", "Vite", "Babel", "SwiftUI",
+    "UIKit", "Jetpack Compose", "XML Layouts", "Storybook", "Progressive Web Apps", "PWA",
+    "Responsive Design", "Accessibility", "WCAG"
+  ],
+  "Backend": [
+    "REST APIs", "RESTful Services", "GraphQL", "gRPC", "SOAP", "Microservices",
+    "Microservices Architecture", "Serverless", "WebSockets", "Message Queues", "RabbitMQ",
+    "Apache Kafka", "Celery", "Redis Pub/Sub", "API Gateway", "OAuth", "OAuth2", "JWT",
+    "OpenAPI", "Swagger", "MVC", "MVVM", "MVP", "Clean Architecture", "Domain-Driven Design",
+    "Event-Driven Architecture", "SOA", "Multithreading", "Concurrency", "Combine",
+    "Core Animation", "Core Data", "APNS", "FCM", "Push Notifications", "BLE",
+    "Bluetooth Low Energy", "Socket Programming"
+  ],
+  "Cloud & DevOps": [
+    "AWS", "Amazon Web Services", "Azure", "Microsoft Azure", "Google Cloud Platform", "GCP",
+    "Docker", "Kubernetes", "Helm", "Terraform", "Ansible", "Chef", "Puppet", "Jenkins",
+    "GitHub Actions", "GitLab CI", "CircleCI", "Travis CI", "CI/CD", "Continuous Integration",
+    "Continuous Deployment", "EC2", "S3", "Lambda", "ECS", "EKS", "CloudFormation", "Fargate",
+    "Azure DevOps", "Azure Functions", "Cloud Functions", "App Engine", "Nginx", "Apache",
+    "Load Balancing", "Auto Scaling", "Prometheus", "Grafana", "Datadog", "Splunk", "ELK Stack",
+    "Elasticsearch", "Logstash", "Kibana", "Sentry", "Firebase Crashlytics", "Vagrant",
+    "Infrastructure as Code", "Site Reliability Engineering", "SRE"
+  ],
+  "Databases": [
+    "MySQL", "PostgreSQL", "SQLite", "Microsoft SQL Server", "Oracle Database", "MongoDB",
+    "Cassandra", "DynamoDB", "Redis", "Firebase", "Firestore", "Realm", "Neo4j", "CouchDB",
+    "MariaDB", "BigQuery", "Snowflake", "Redshift", "Database Design", "Database Normalization",
+    "Query Optimization", "Stored Procedures", "Indexing"
+  ],
+  "Mobile": [
+    "iOS Development", "Android Development", "Xcode", "Android Studio", "Swift", "SwiftUI",
+    "Objective-C", "React Native", "Flutter", "Xamarin", "Ionic", "Core Data", "Realm",
+    "App Store Deployment", "Google Play Deployment", "Mobile Architecture", "MVVM", "MVC",
+    "TestFlight", "Fastlane", "CocoaPods", "Swift Package Manager", "Gradle"
+  ],
+  "Testing & QA": [
+    "Unit Testing", "Integration Testing", "XCTest", "JUnit", "PyTest", "Pytest", "Mocha",
+    "Jest", "Selenium", "Cypress", "Appium", "TestNG", "Postman", "SoapUI", "Test Automation",
+    "TDD", "Test-Driven Development", "BDD", "Behavior-Driven Development", "Manual Testing",
+    "Regression Testing", "Load Testing", "Performance Testing", "JMeter", "Quality Assurance"
+  ],
+  "Data & ML": [
+    "Machine Learning", "Deep Learning", "Natural Language Processing", "NLP", "Computer Vision",
+    "TensorFlow", "PyTorch", "Keras", "scikit-learn", "Pandas", "NumPy", "SciPy", "spaCy",
+    "OpenCV", "Data Analysis", "Data Engineering", "Data Visualization", "Matplotlib", "Seaborn",
+    "Power BI", "Tableau", "ETL", "Apache Spark", "Hadoop", "Airflow", "Jupyter",
+    "Statistical Analysis", "A/B Testing", "Predictive Modeling", "Generative AI", "LLM",
+    "Large Language Models"
+  ],
+  "Tools": [
+    "Git", "GitHub", "GitLab", "Bitbucket", "Jira", "Confluence", "Trello", "Asana", "Slack",
+    "Figma", "Sketch", "Adobe XD", "Postman", "VS Code", "IntelliJ IDEA", "PyCharm", "Eclipse",
+    "Android Studio", "Xcode", "Notion", "Miro", "SonarQube", "Maven", "Gradle", "npm", "yarn",
+    "pip", "Homebrew"
+  ],
+  "Soft Skills & Leadership": [
+    "Team Leadership", "Team Management", "Project Management", "Agile", "Scrum", "Kanban",
+    "Communication", "Problem Solving", "Critical Thinking", "Mentoring", "Code Review",
+    "Stakeholder Management", "Cross-functional Collaboration", "Time Management",
+    "Client Communication", "Requirement Gathering", "Technical Documentation",
+    "Public Speaking", "Conflict Resolution", "Adaptability", "Creativity", "Negotiation",
+    "Product Management", "Business Analysis", "Sprint Planning", "Risk Management"
+  ]
+}

@@ -1,0 +1,22 @@
+node_modules/
+.next/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pgdata-local/
+
+# Real resumes used as local test fixtures (personal data) — kept locally
+# at the developer's discretion, never committed. See services/parser
+# tests, which skip gracefully when these aren't present.
+samples/fixtures/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+coverage/

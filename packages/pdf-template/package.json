@@ -1,0 +1,22 @@
+{
+  "name": "@wlr/pdf-template",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^3.4.4",
+    "@wlr/shared-types": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  }
+}

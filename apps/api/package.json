@@ -1,0 +1,51 @@
+{
+  "name": "@wlr/api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "tsx src/db/migrate.ts",
+    "seed:super-admin": "tsx src/scripts/seedSuperAdmin.ts",
+    "test": "jest --runInBand",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^3.4.4",
+    "@wlr/pdf-template": "*",
+    "@wlr/shared-types": "*",
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^2.5.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^18.3.12",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "nock": "^13.5.6",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
