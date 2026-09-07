@@ -111,7 +111,6 @@ export default function CandidateDetailPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [latestExport, setLatestExport] = useState<GeneratedResume | null>(null);
-  const [priorExports, setPriorExports] = useState<GeneratedResume[]>([]);
 
   // Company branding, needed only to render the live in-browser PDF preview.
   const [company, setCompany] = useState<Company | null>(null);
@@ -123,9 +122,9 @@ export default function CandidateDetailPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [candidate, exports, companyResult] = await Promise.all([
+        const [candidate, currentExport, companyResult] = await Promise.all([
           candidatesApi.get(candidateId),
-          candidatesApi.listExports(candidateId).catch(() => [] as GeneratedResume[]),
+          candidatesApi.getExport(candidateId).catch(() => null),
           companyApi.get().catch(() => null),
         ]);
         if (cancelled) return;
@@ -148,12 +147,8 @@ export default function CandidateDetailPage() {
         const merged = Array.from(new Set([...stashed, ...fromMeta]));
         setWarnings(merged);
 
-        if (exports.length > 0) {
-          const sorted = [...exports].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setLatestExport(sorted[0]);
-          setPriorExports(sorted.slice(1));
+        if (currentExport) {
+          setLatestExport(currentExport);
           // A resume already exists — that's the actual deliverable, so lead
           // with it rather than an edit form the user didn't ask to see.
           setViewMode("preview");
@@ -205,10 +200,7 @@ export default function CandidateDetailPage() {
 
       setSaveExportStage("generating");
       const resume = await candidatesApi.export(candidateId);
-      setLatestExport((prev) => {
-        if (prev) setPriorExports((p) => [prev, ...p]);
-        return resume;
-      });
+      setLatestExport(resume);
       setViewMode("preview");
     } catch (err) {
       setSaveExportError(err instanceof ApiError ? err.message : "Failed to save and generate the PDF.");
@@ -251,10 +243,7 @@ export default function CandidateDetailPage() {
     setExportError(null);
     try {
       const resume = await candidatesApi.export(candidateId);
-      setLatestExport((prev) => {
-        if (prev) setPriorExports((p) => [prev, ...p]);
-        return resume;
-      });
+      setLatestExport(resume);
     } catch (err) {
       setExportError(err instanceof ApiError ? err.message : "Failed to export resume.");
     } finally {
@@ -301,7 +290,7 @@ export default function CandidateDetailPage() {
             <div>
               <p className="text-sm font-medium text-gray-900">This is the resume your client will receive</p>
               <p className="text-xs text-gray-500">
-                Generated {new Date(latestExport.createdAt).toLocaleString()}
+                Last generated {new Date(latestExport.updatedAt).toLocaleString()}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -335,29 +324,6 @@ export default function CandidateDetailPage() {
               <FullPageSpinner />
             )}
           </div>
-
-          {priorExports.length > 0 && (
-            <details className="text-sm text-gray-500">
-              <summary className="cursor-pointer select-none">
-                Previous exports ({priorExports.length})
-              </summary>
-              <ul className="mt-2 space-y-1 pl-4">
-                {priorExports.map((exp) => (
-                  <li key={exp.id}>
-                    <a
-                      href={exp.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={downloadName}
-                      className="break-all text-brand-600 underline hover:text-brand-700"
-                    >
-                      {new Date(exp.createdAt).toLocaleString()}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
         </div>
       ) : (
         <div className="space-y-8">

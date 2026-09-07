@@ -288,7 +288,7 @@ export async function listCandidates(scope: CompanyScope): Promise<CandidateList
             count(cs.id) as skill_count
        from candidates c
        left join candidate_skills cs on cs.candidate_id = c.id
-      where c.company_id = $1
+      where c.company_id = $1 and c.deleted_at is null
       group by c.id
       order by c.created_at desc`,
     [scope.companyId]
@@ -306,7 +306,7 @@ export async function listCandidates(scope: CompanyScope): Promise<CandidateList
 
 export async function getCandidateById(scope: CompanyScope, id: string): Promise<Candidate | null> {
   const result = await pool.query<CandidateRow>(
-    `select * from candidates where id = $1 and company_id = $2`,
+    `select * from candidates where id = $1 and company_id = $2 and deleted_at is null`,
     [id, scope.companyId]
   );
   const row = result.rows[0];
@@ -316,10 +316,10 @@ export async function getCandidateById(scope: CompanyScope, id: string): Promise
 
 /** Lightweight existence + ownership check without paying for the full hydration. */
 export async function candidateExists(scope: CompanyScope, id: string): Promise<boolean> {
-  const result = await pool.query("select 1 from candidates where id = $1 and company_id = $2", [
-    id,
-    scope.companyId,
-  ]);
+  const result = await pool.query(
+    "select 1 from candidates where id = $1 and company_id = $2 and deleted_at is null",
+    [id, scope.companyId]
+  );
   return (result.rowCount ?? 0) > 0;
 }
 
@@ -345,7 +345,7 @@ export async function updateCandidate(
   const result = await client.query(
     `update candidates
         set full_name = $1, email = $2, phone = $3, location = $4, summary = $5, updated_at = now()
-      where id = $6 and company_id = $7`,
+      where id = $6 and company_id = $7 and deleted_at is null`,
     [data.fullName, data.email, data.phone, data.location, data.summary, id, scope.companyId]
   );
   if ((result.rowCount ?? 0) === 0) return false;
@@ -355,10 +355,17 @@ export async function updateCandidate(
   return true;
 }
 
+/**
+ * Soft delete: marks the candidate as removed without touching the row (or
+ * any child rows) so it's excluded from every read path above but still
+ * recoverable/auditable in the database. Filtering `deleted_at is null`
+ * makes this idempotent-safe — deleting an already-deleted (or
+ * nonexistent) candidate returns false, same as a real DELETE would.
+ */
 export async function deleteCandidate(scope: CompanyScope, id: string): Promise<boolean> {
-  const result = await pool.query("delete from candidates where id = $1 and company_id = $2", [
-    id,
-    scope.companyId,
-  ]);
+  const result = await pool.query(
+    "update candidates set deleted_at = now() where id = $1 and company_id = $2 and deleted_at is null",
+    [id, scope.companyId]
+  );
   return (result.rowCount ?? 0) > 0;
 }

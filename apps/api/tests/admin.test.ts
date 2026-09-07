@@ -72,6 +72,24 @@ describe("admin: platform operations", () => {
     expect(res.body.totalUsers).toBeGreaterThanOrEqual(1);
   });
 
+  it("SUPER_ADMIN fetches full company detail with its users and candidates", async () => {
+    const res = await request(app)
+      .get(`/api/admin/companies/${companyId}`)
+      .set("Authorization", `Bearer ${superAdminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(companyId);
+    expect(Array.isArray(res.body.users)).toBe(true);
+    expect(res.body.users.some((u: { email: string }) => u.email === companyAdminEmail)).toBe(true);
+    expect(Array.isArray(res.body.candidates)).toBe(true);
+  });
+
+  it("returns 404 company detail for a nonexistent company", async () => {
+    const res = await request(app)
+      .get("/api/admin/companies/00000000-0000-0000-0000-000000000000")
+      .set("Authorization", `Bearer ${superAdminToken}`);
+    expect(res.status).toBe(404);
+  });
+
   it("deactivates a company, then that company's COMPANY_ADMIN is rejected with 403 on the next request", async () => {
     const login = await request(app)
       .post("/api/auth/login")

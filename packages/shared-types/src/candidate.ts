@@ -80,4 +80,5 @@ export interface GeneratedResume {
   companyId: string;
   pdfUrl: string;
   createdAt: string;
+  updatedAt: string;
 }

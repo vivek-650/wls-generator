@@ -92,10 +92,10 @@ router.post("/:id/export", async (req: Request, res: Response, next) => {
   }
 });
 
-router.get("/:id/exports", async (req: Request, res: Response, next) => {
+router.get("/:id/export", async (req: Request, res: Response, next) => {
   try {
-    const exports = await candidateService.listExports(req.user!, req.params.id);
-    res.status(200).json(exports);
+    const current = await candidateService.getExport(req.user!, req.params.id);
+    res.status(200).json(current);
   } catch (err) {
     next(err);
   }

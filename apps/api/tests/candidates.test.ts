@@ -139,15 +139,35 @@ describe("candidate upload + persist + edit + export flow", () => {
     expect(res.body.pdfUrl).toMatch(/^https:\/\/cloudinary\.test\//);
   }, 30000);
 
-  it("lists exports for the candidate", async () => {
+  it("gets the current export for the candidate", async () => {
     const res = await request(app)
-      .get(`/api/candidates/${candidateId}/exports`)
+      .get(`/api/candidates/${candidateId}/export`)
       .set("Authorization", `Bearer ${accessToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.candidateId).toBe(candidateId);
   });
 
-  it("deletes a candidate", async () => {
+  it("re-exporting overwrites the same PDF instead of creating a new one", async () => {
+    const first = await request(app)
+      .get(`/api/candidates/${candidateId}/export`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    const second = await request(app)
+      .post(`/api/candidates/${candidateId}/export`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(second.status).toBe(200);
+    // Same Cloudinary URL — the asset was overwritten in place, not duplicated.
+    expect(second.body.pdfUrl).toBe(first.body.pdfUrl);
+    expect(second.body.id).toBe(first.body.id);
+
+    const row = await pool.query("select count(*) from generated_resumes where candidate_id = $1", [
+      candidateId,
+    ]);
+    expect(Number(row.rows[0].count)).toBe(1);
+  }, 30000);
+
+  it("soft-deletes a candidate: hidden from the API, still present in the database", async () => {
     const del = await request(app)
       .delete(`/api/candidates/${candidateId}`)
       .set("Authorization", `Bearer ${accessToken}`);
@@ -157,5 +177,20 @@ describe("candidate upload + persist + edit + export flow", () => {
       .get(`/api/candidates/${candidateId}`)
       .set("Authorization", `Bearer ${accessToken}`);
     expect(get.status).toBe(404);
+
+    const list = await request(app)
+      .get("/api/candidates")
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(list.body.some((c: { id: string }) => c.id === candidateId)).toBe(false);
+
+    const row = await pool.query("select deleted_at from candidates where id = $1", [candidateId]);
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0].deleted_at).not.toBeNull();
+
+    // Deleting an already-deleted candidate is a no-op 404, not a second delete.
+    const redel = await request(app)
+      .delete(`/api/candidates/${candidateId}`)
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(redel.status).toBe(404);
   });
 });

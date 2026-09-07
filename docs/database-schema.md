@@ -1,6 +1,6 @@
 # Database Schema
 
-Postgres, hosted on Supabase. Supabase is used purely as managed Postgres — **Supabase Auth is not used**; authentication is implemented in `apps/api` against the `users` table. Migration source of truth: [`apps/api/migrations/001_init.sql`](../apps/api/migrations/001_init.sql).
+Postgres, hosted on Supabase. Supabase is used purely as managed Postgres — **Supabase Auth is not used**; authentication is implemented in `apps/api` against the `users` table. Migration source of truth: [`apps/api/migrations/`](../apps/api/migrations/) (`001_init.sql` plus incremental migrations, applied in order and tracked in `schema_migrations`).
 
 ## Entity overview
 
@@ -64,6 +64,7 @@ The parsed candidate profile. Always scoped to a `company_id`.
 | source_file_url | text | original upload, Cloudinary URL |
 | source_file_type | enum `pdf`\|`docx` | |
 | created_at / updated_at | timestamptz | |
+| deleted_at | timestamptz nullable | soft delete (migration 002) — set by `DELETE /candidates/:id` instead of removing the row; every read query filters `deleted_at is null` |
 
 ### `work_experience`, `education`, `certifications`, `projects`
 Child tables of `candidates`, one row per entry, ordered by `sort_order`. Fields mirror the `ParsedResume` shared type (`packages/shared-types/src/parsedResume.ts`) so the parser output maps 1:1 into rows.
@@ -75,7 +76,7 @@ Normalized (not JSON) so skills are filterable/searchable: `(candidate_id, skill
 Full raw JSON returned by the Python parser (`raw_json jsonb`) plus `parser_version`, kept for audit/debugging and so re-parsing logic can be improved without re-uploading files.
 
 ### `generated_resumes`
-One row per white-label PDF export: `candidate_id`, `company_id`, `pdf_url` (Cloudinary), `created_at`.
+At most one row per candidate (`unique(candidate_id)`, migration 003): `candidate_id`, `company_id`, `pdf_url` (Cloudinary), `created_at` (first generated), `updated_at` (last generated). Re-exporting a candidate — including every "Edit info" save — upserts this row and overwrites the same Cloudinary asset in place, rather than inserting a new row/file per export.
 
 ## Roles & multi-tenancy
 

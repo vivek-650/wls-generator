@@ -99,7 +99,7 @@ npm test
 
 Coverage:
 - `tests/auth.test.ts` — register -> login -> `/auth/me`, duplicate-email 409, bad-credentials 401, refresh rotation (old cookie revoked, new one works), logout.
-- `tests/candidates.test.ts` — upload persists a hydrated `Candidate` from the mocked parser response, rejected file types, a parser 422 propagates without leaving an orphaned candidate row, list/get/patch/delete, export -> `GeneratedResume`, list exports.
+- `tests/candidates.test.ts` — upload persists a hydrated `Candidate` from the mocked parser response, rejected file types, a parser 422 propagates without leaving an orphaned candidate row, list/get/patch, export -> `GeneratedResume`, re-export overwrites the same PDF/row instead of creating a new one, soft delete (hidden from the API, row still present in the database).
 - `tests/isolation.test.ts` — company B can never read/list/update/delete company A's candidate or see A's branding (403/404 only).
 - `tests/admin.test.ts` — non-SUPER_ADMIN blocked from `/admin/*`; SUPER_ADMIN lists companies/stats; deactivating a company immediately 403s that company's already-issued access token (checked live against the DB in `requireAuth`, not cached) and blocks fresh logins; reactivating restores access.
 

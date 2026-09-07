@@ -5,6 +5,7 @@ import { SecondaryButton } from "@/components/FormField";
 import { Spinner } from "@/components/Spinner";
 import { ApiError, adminApi } from "@/lib/apiClient";
 import type { AdminCompanySummary, CompanyStatus } from "@wlr/shared-types";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function AdminCompaniesPage() {
@@ -91,7 +92,14 @@ export default function AdminCompaniesPage() {
               <tbody className="divide-y divide-gray-100">
                 {companies.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                    <td className="px-4 py-3 text-sm font-medium">
+                      <Link
+                        href={`/admin/companies/${c.id}`}
+                        className="text-brand-600 hover:text-brand-700"
+                      >
+                        {c.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${

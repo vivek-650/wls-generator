@@ -1,7 +1,7 @@
 "use client";
 
 import { ErrorBanner } from "@/components/Banner";
-import { PrimaryButton } from "@/components/FormField";
+import { DangerButton, PrimaryButton } from "@/components/FormField";
 import { Spinner } from "@/components/Spinner";
 import { ApiError, candidatesApi } from "@/lib/apiClient";
 import { stashUploadWarnings } from "@/lib/uploadWarnings";
@@ -18,6 +18,7 @@ export default function CandidatesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +59,24 @@ export default function CandidatesPage() {
         err instanceof ApiError ? err.message : "Failed to parse resume. Please try again."
       );
       setUploading(false);
+    }
+  }
+
+  async function handleRemove(candidate: CandidateListItem) {
+    const confirmed = window.confirm(
+      `Remove ${candidate.fullName || "this candidate"}? They'll no longer appear in your candidate list.`
+    );
+    if (!confirmed) return;
+
+    setRemovingId(candidate.id);
+    setLoadError(null);
+    try {
+      await candidatesApi.remove(candidate.id);
+      setCandidates((prev) => (prev ? prev.filter((c) => c.id !== candidate.id) : prev));
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : "Failed to remove candidate.");
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -126,6 +145,9 @@ export default function CandidatesPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                     Added
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -144,6 +166,12 @@ export default function CandidatesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{c.skillCount}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {new Date(c.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <DangerButton onClick={() => handleRemove(c)} disabled={removingId === c.id}>
+                        {removingId === c.id && <Spinner className="h-4 w-4" />}
+                        {removingId === c.id ? "Removing..." : "Remove"}
+                      </DangerButton>
                     </td>
                   </tr>
                 ))}

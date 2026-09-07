@@ -15,8 +15,8 @@ import {
 import { insertParsedResumeAudit } from "../repositories/parsedResumeRepository";
 import { getCompanyById } from "../repositories/companyRepository";
 import {
-  insertGeneratedResume,
-  listGeneratedResumesForCandidate,
+  getGeneratedResumeForCandidate,
+  upsertGeneratedResume,
 } from "../repositories/generatedResumeRepository";
 import { deleteAsset, uploadGeneratedResume, uploadResumeSource } from "../clients/cloudinaryClient";
 import { parseResume } from "../clients/parserClient";
@@ -164,17 +164,18 @@ export async function exportCandidate(user: AuthenticatedUser, id: string): Prom
     React.createElement(ResumeDocument, { candidate, company }) as any
   );
 
-  const filename = `${candidate.fullName.replace(/\s+/g, "-").toLowerCase()}-${candidate.id}.pdf`;
-  const uploaded = await uploadGeneratedResume(pdfBuffer, filename);
+  // Overwrites the candidate's single Cloudinary asset in place (see
+  // `uploadGeneratedResume`) — the URL stays the same across re-exports.
+  const uploaded = await uploadGeneratedResume(pdfBuffer, candidate.id);
 
-  return insertGeneratedResume(scope, candidate.id, uploaded.url);
+  return upsertGeneratedResume(scope, candidate.id, uploaded.url);
 }
 
-export async function listExports(user: AuthenticatedUser, id: string): Promise<GeneratedResume[]> {
+export async function getExport(user: AuthenticatedUser, id: string): Promise<GeneratedResume | null> {
   const scope = withCompanyScope(user.companyId);
   const exists = await candidateExists(scope, id);
   if (!exists) {
     throw AppError.notFound("Candidate not found");
   }
-  return listGeneratedResumesForCandidate(scope, id);
+  return getGeneratedResumeForCandidate(scope, id);
 }

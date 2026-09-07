@@ -1,4 +1,5 @@
 import type {
+  AdminCompanyDetail,
   AdminCompanySummary,
   AuthResponse,
   AuthUser,
@@ -176,12 +177,12 @@ export const candidatesApi = {
   remove: (id: string) => request<void>(`/candidates/${id}`, { method: "DELETE" }),
   export: (id: string) =>
     request<GeneratedResume>(`/candidates/${id}/export`, { method: "POST" }),
-  listExports: (id: string) => request<GeneratedResume[]>(`/candidates/${id}/exports`),
+  getExport: (id: string) => request<GeneratedResume | null>(`/candidates/${id}/export`),
 };
 
 export const adminApi = {
   listCompanies: () => request<AdminCompanySummary[]>("/admin/companies"),
-  getCompany: (id: string) => request<AdminCompanySummary>(`/admin/companies/${id}`),
+  getCompany: (id: string) => request<AdminCompanyDetail>(`/admin/companies/${id}`),
   updateCompanyStatus: (id: string, data: UpdateCompanyStatusRequest) =>
     request<AdminCompanySummary>(`/admin/companies/${id}/status`, {
       method: "PATCH",

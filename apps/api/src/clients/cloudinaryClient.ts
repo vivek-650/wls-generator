@@ -51,14 +51,22 @@ export function uploadResumeSource(buffer: Buffer, filename: string): Promise<Up
   });
 }
 
-/** Generated white-label PDF exports — also 'raw'; see `uploadResumeSource` for why the extension stays in the public_id. */
-export function uploadGeneratedResume(buffer: Buffer, filename: string): Promise<UploadResult> {
+/**
+ * Generated white-label PDF exports — 'raw', same extension-in-public_id
+ * reasoning as `uploadResumeSource`. Keyed by candidate id (not filename)
+ * and always overwritten in place: a candidate has at most one *current*
+ * generated resume, so re-exporting (including every "Edit info" save)
+ * replaces the same Cloudinary asset — same URL, new content — instead of
+ * accumulating a new file on every export. Mirrors `uploadCompanyLogo`
+ * below, which does the same for company logos.
+ */
+export function uploadGeneratedResume(buffer: Buffer, candidateId: string): Promise<UploadResult> {
   return uploadBuffer(buffer, {
     resource_type: "raw",
     folder: "wlr/resumes/generated",
-    public_id: filename,
-    use_filename: true,
-    unique_filename: true,
+    public_id: `${candidateId}.pdf`,
+    overwrite: true,
+    invalidate: true,
   });
 }
 

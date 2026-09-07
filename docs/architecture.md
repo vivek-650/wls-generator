@@ -57,19 +57,21 @@ Access token: short-lived JWT (15 min), returned in the JSON body only (never a 
 | GET /api/candidates | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 200 `CandidateListItem[]` |
 | GET /api/candidates/:id | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 200 `Candidate` |
 | PATCH /api/candidates/:id | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | `UpdateCandidateRequest` | 200 `Candidate` |
-| DELETE /api/candidates/:id | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 204 |
+| DELETE /api/candidates/:id | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 204 (soft delete — see below) |
 | POST /api/candidates/:id/export | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 200 `GeneratedResume` |
-| GET /api/candidates/:id/exports | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 200 `GeneratedResume[]` |
+| GET /api/candidates/:id/export | `COMPANY_ADMIN`\|`COMPANY_MEMBER` | — | 200 `GeneratedResume \| null` |
 
 Upload flow: `apps/api` receives the file → uploads the original to Cloudinary (`source_file_url`) → forwards the file buffer to `services/parser` `POST /parse` → receives `ParsedResume` → inserts `candidates` + child rows (`work_experience`, `education`, `certifications`, `projects`, `candidate_skills`) + a `parsed_resumes` audit row (`raw_json` = the full `ParsedResume`) → responds with the hydrated `Candidate`.
 
-Export flow: load the candidate + its company's `Company` branding → render with `@react-pdf/renderer` (template in `apps/api/src/pdf/`) → upload the resulting PDF buffer to Cloudinary → insert `generated_resumes` row → respond with its URL.
+Export flow: load the candidate + its company's `Company` branding → render with `@react-pdf/renderer` (template in `apps/api/src/pdf/`) → upload the resulting PDF buffer to Cloudinary, **overwriting the candidate's existing asset in place** (stable `public_id` keyed by candidate id, `overwrite: true` — see `uploadGeneratedResume` in `clients/cloudinaryClient.ts`) → upsert the single `generated_resumes` row for that candidate (`unique(candidate_id)`) → respond with its URL. A candidate has at most one *current* generated resume: re-exporting (including every "Edit info" save) replaces it rather than accumulating a new Cloudinary file + row per export.
+
+Delete flow (soft delete): `DELETE /candidates/:id` sets `candidates.deleted_at = now()` rather than removing the row (or any child rows) — the record stays in the database for audit/recovery, but every read path (`list`, `get`, `exists`, `update`) filters `deleted_at is null`, so a deleted candidate disappears from the company's view immediately. See `deleteCandidate` in `repositories/candidateRepository.ts`.
 
 ### Admin (auth required, `SUPER_ADMIN` only)
 | Method & path | Body | Response |
 |---|---|---|
 | GET /api/admin/companies | — | 200 `AdminCompanySummary[]` |
-| GET /api/admin/companies/:id | — | 200 `AdminCompanySummary` |
+| GET /api/admin/companies/:id | — | 200 `AdminCompanyDetail` (summary + branding profile + that company's `users`/`candidates`, read through the same `withCompanyScope` path the company's own dashboard uses) |
 | PATCH /api/admin/companies/:id/status | `UpdateCompanyStatusRequest` | 200 `AdminCompanySummary` |
 | GET /api/admin/stats | — | 200 `PlatformStats` |
 
