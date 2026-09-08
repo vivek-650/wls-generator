@@ -75,9 +75,11 @@ def parse_resume(file_bytes: bytes, source_file_type: SourceFileType) -> ParsedR
         if source_file_type == SourceFileType.pdf:
             lines = pdf_extractor.extract_lines(file_bytes)
             tables = pdf_extractor.extract_tables(file_bytes)
+            page_sizes = pdf_extractor.extract_page_sizes(file_bytes)
         elif source_file_type == SourceFileType.docx:
             lines = docx_extractor.extract_lines(file_bytes)
             tables = docx_extractor.extract_tables(file_bytes)
+            page_sizes = {}
         else:
             raise UnparseableFileError(f"Unsupported file type: {source_file_type}")
     except UnparseableFileError:
@@ -93,7 +95,7 @@ def parse_resume(file_bytes: bytes, source_file_type: SourceFileType) -> ParsedR
     nlp = _get_nlp()
     matcher = _get_skill_matcher()
 
-    seg = segment(lines)
+    seg = segment(lines, page_sizes, matcher)
 
     contact = extract_contact(seg.contact_lines, nlp)
     if not contact["fullName"]:

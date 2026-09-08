@@ -6,7 +6,7 @@ sit on the same baseline).
 """
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
 
@@ -36,7 +36,7 @@ def extract_lines(file_bytes: bytes) -> List[Line]:
         for page_index in range(doc.page_count):
             page = doc[page_index]
             page_dict = page.get_text("dict")
-            for block in page_dict.get("blocks", []):
+            for block_index, block in enumerate(page_dict.get("blocks", [])):
                 if block.get("type") != 0:  # 0 = text block, 1 = image
                     continue
                 for raw_line in block.get("lines", []):
@@ -61,10 +61,34 @@ def extract_lines(file_bytes: bytes) -> List[Line]:
                             bold=is_bold,
                             x0=bbox[0],
                             y0=bbox[1],
+                            x1=bbox[2],
+                            y1=bbox[3],
+                            # Native PyMuPDF block grouping — a real structural signal
+                            # (several visual lines the PDF producer itself grouped
+                            # together) that region detection in app/layout/ builds on,
+                            # rather than re-deriving block boundaries from scratch.
+                            # Namespaced by page so block 0 on page 2 never collides
+                            # with block 0 on page 1.
+                            block_id=page_index * 100000 + block_index,
                         )
                     )
                     order += 1
         return lines
+    finally:
+        doc.close()
+
+
+def extract_page_sizes(file_bytes: bytes) -> Dict[int, Tuple[float, float]]:
+    """Return {1-indexed page number: (width, height)} for every page.
+
+    Region detection (app/layout/regions.py) needs this to reason in
+    *relative* terms — "this block spans most of the page width" implies a
+    full-width region — rather than only absolute point gaps, which don't
+    generalize across page sizes/orientations.
+    """
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    try:
+        return {i + 1: (doc[i].rect.width, doc[i].rect.height) for i in range(doc.page_count)}
     finally:
         doc.close()
 

@@ -25,6 +25,7 @@ IOS_RESUME = FIXTURES_DIR / "ios-developer-resume.pdf"
 PYTHON_RESUME = FIXTURES_DIR / "python-developer-resume.pdf"
 FULLSTACK_RESUME = FIXTURES_DIR / "vivek-anand-resume.pdf"
 TWO_COLUMN_RESUME = FIXTURES_DIR / "two-column-resume.pdf"
+NONSTANDARD_DEVOPS_RESUME = FIXTURES_DIR / "pdfs" / "06_nonstandard_devops.pdf"
 
 SYNTHETIC_DIR = Path(__file__).resolve().parent / "synthetic"
 SYNTHETIC_DOCX_RESUME = SYNTHETIC_DIR / "synthetic-docx-resume.docx"
@@ -54,6 +55,11 @@ def fullstack_result() -> ParsedResume:
 @pytest.fixture(scope="module")
 def two_column_result() -> ParsedResume:
     return _parse(TWO_COLUMN_RESUME)
+
+
+@pytest.fixture(scope="module")
+def nonstandard_devops_result() -> ParsedResume:
+    return _parse(NONSTANDARD_DEVOPS_RESUME)
 
 
 # --- iOS developer resume (Ghoshit Vora) --------------------------------
@@ -421,6 +427,60 @@ def test_two_column_projects_extracted_from_inline_prose_titles(two_column_resul
     assert any("flinkit" in n for n in names)
     assert any("dame essentials" in n and "performance marketing" in n for n in names)
     assert any("jio hotstar" in n for n in names)
+
+
+# A resume that styles every section with entirely creative header wording
+# no fixed alias list could enumerate ("A LITTLE ABOUT ME", "WHAT I WORK
+# WITH", "CAREER TIMELINE", "ACADEMICS", "BADGES & CERTIFICATIONS", "THINGS
+# I HAVE BUILT") — the target case for the content-based classification
+# fallback in section_evidence.py/segmentation_heading.py, wired in via
+# segmentation.py's `_resolve_headers`. Before that existed, every one of
+# these sections' content silently bled into whichever earlier section (or
+# the raw contact block) happened to precede it.
+
+
+def test_nonstandard_headers_contact_block_untouched(nonstandard_devops_result: ParsedResume):
+    # Regression: the candidate's own name/tagline and the large "A LITTLE
+    # ABOUT ME" heading right after it both look plausibly header-shaped by
+    # formatting alone — content classification wrongly promoted lines in
+    # this zone to phantom headers on two different real fixtures, wiping
+    # out email/phone/location (contact_lines ended up empty or truncated
+    # to just the name) before the guards in classify_by_content existed.
+    c = nonstandard_devops_result.contact
+    assert c.fullName and "nikhil" in c.fullName.lower()
+    assert c.email == "nikhil.verma@example.com"
+    assert c.phone
+    assert c.location
+
+
+def test_nonstandard_headers_summary_classified(nonstandard_devops_result: ParsedResume):
+    # "A LITTLE ABOUT ME" has no alias match at all; classified by content
+    # (prose, no dates, no bulleted entries) rather than by wording.
+    assert nonstandard_devops_result.summary
+    assert "devops" in nonstandard_devops_result.summary.lower()
+
+
+def test_nonstandard_headers_skills_classified(nonstandard_devops_result: ParsedResume):
+    # "WHAT I WORK WITH" — classified by content (a comma-separated list of
+    # real technology names) rather than by wording.
+    skill_names = {s.skill.lower() for s in nonstandard_devops_result.skills}
+    assert "kubernetes" in skill_names or "docker" in skill_names
+
+
+def test_nonstandard_headers_experience_classified(nonstandard_devops_result: ParsedResume):
+    # "CAREER TIMELINE" — classified by content (date ranges, job titles,
+    # bulleted descriptions) rather than by wording.
+    companies = {(e.company or "").lower() for e in nonstandard_devops_result.experience}
+    assert any("cloudroute" in c for c in companies)
+    assert any("netaxis" in c for c in companies)
+
+
+def test_nonstandard_headers_education_classified(nonstandard_devops_result: ParsedResume):
+    # "ACADEMICS" — classified by content (degree wording, an institution
+    # name, graduation years) rather than by wording.
+    assert nonstandard_devops_result.education
+    institutions = {(e.institution or "").lower() for e in nonstandard_devops_result.education}
+    assert any("galgotias" in i for i in institutions)
 
 
 def test_unparseable_file_raises():

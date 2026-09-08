@@ -18,9 +18,31 @@ from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 from .extraction.models import Line
+from .extractors.skills import SkillMatcher
+from .layout import resolve_reading_order
+from .section_evidence import classify_by_content
+from .segmentation_heading import score_heading_candidate
 
 CONTACT_BLOCK = "__contact__"
 DROPPED = "__dropped__"
+
+# How visually header-shaped a line must be before it's even worth trying
+# to content-classify. Real resumes routinely style an entry *label* line
+# (a job title, a company/institution name) with the same weight/size as
+# a genuine section header — "Software Developer Intern" at 12pt bold
+# scores only marginally lower than "WORK EXPERIENCE" at the same 12pt
+# bold on a real fixture, and the candidate's own name (huge font, no
+# other structure yet) does too. Both got wrongly promoted to phantom
+# headers at a lower threshold, silently deleting the entry-label text
+# from the section body the real extractor needed to see it in. What
+# reliably separates them in practice is that a genuine header is
+# overwhelmingly styled ALL CAPS while an entry-label line usually isn't —
+# so this bar sits high enough that bold+upsized alone (no uppercase)
+# rarely clears it, while an uppercase header comfortably does; it's a
+# threshold tuned against real regressions, not a hard "must be uppercase"
+# rule (see segmentation_heading.py — uppercase is still just one
+# contributing signal, never a hard requirement).
+_MIN_VISUAL_SCORE = 0.7
 
 # Canonical section name -> accepted header phrasings (lowercase). This list
 # is deliberately broad — real resumes phrase the same section a dozen
@@ -33,7 +55,7 @@ _HEADER_ALIASES: Dict[str, List[str]] = {
     "summary": [
         "professional summary", "summary", "profile", "professional profile",
         "objective", "career objective", "about me", "about", "overview",
-        "executive summary", "personal summary",
+        "executive summary", "personal summary", "personal statement",
     ],
     "skills": [
         "skills", "technical skills", "core competencies", "key skills",
@@ -41,27 +63,38 @@ _HEADER_ALIASES: Dict[str, List[str]] = {
         "skills & tools", "skills and tools", "technical proficiencies",
         "proficiencies", "tech stack", "tools", "tools & technologies",
         "tools and technologies", "soft skills", "personal skills",
-        "interpersonal skills", "soft skills & personality",
+        "interpersonal skills", "soft skills & personality", "core skills",
+        "technology stack", "toolkit", "technical expertise",
+        # Deliberately NOT "technologies" alone: a bare "Technologies:"
+        # label inside a project's tech-stack line (handled by
+        # extractors/projects.py's own _TECH_LABEL_RE) would exact-match
+        # this alias table at the segmentation level too and get wrongly
+        # promoted to a top-level Skills section header.
     ],
     "experience": [
         "professional experience", "work experience", "experience",
         "employment history", "career history", "work history",
         "relevant experience", "industry experience", "internship experience",
-        "internships", "employment",
+        "internships", "employment", "career", "professional history",
+        "appointments",
     ],
     "education": [
         "education", "academic background", "educational qualification",
         "educational qualifications", "academic qualifications",
         "academic history", "qualifications", "education & training",
+        "educational background",
     ],
     "certifications": [
         "certifications", "certification", "certificates",
         "licenses & certifications", "licenses and certifications",
         "courses & certifications", "professional certifications",
+        "credentials", "professional credentials", "badges",
     ],
     "projects": [
         "projects", "personal projects", "key projects", "academic projects",
         "notable projects", "project experience", "selected projects",
+        "selected work", "selected builds", "portfolio", "case studies",
+        "featured projects",
     ],
     "awards": [
         "awards", "honors", "honors & awards", "awards & achievements",
@@ -99,7 +132,7 @@ _ALL_HEADER_PHRASES.sort(key=lambda p: -len(p[0]))
 
 
 def _fuzzy_header_match(text: str, min_ratio: float = 0.88) -> Optional[str]:
-    normalized = re.sub(r"[^a-z& ]", "", text.lower()).strip()
+    normalized = re.sub(r"[^a-z&/ ]", "", text.lower()).strip()
     if not normalized or len(normalized) > 40:
         return None
 
@@ -109,15 +142,16 @@ def _fuzzy_header_match(text: str, min_ratio: float = 0.88) -> Optional[str]:
             return canonical
 
     # A compound header combining two real sections into one line (e.g.
-    # "EDUCATION & PERSONAL", "Skills & Certifications") is a real
-    # convention this list can't enumerate every combination of — if either
-    # side exactly matches a known alias on its own, use that side's
-    # section rather than falling through to a weak/no fuzzy match against
-    # the whole compound phrase. The *first* segment wins when both sides
-    # happen to match (mirrors how these headers usually name the primary
-    # section first).
-    if " & " in normalized or " and " in normalized:
-        segments = re.split(r"\s+(?:&|and)\s+", normalized)
+    # "EDUCATION & PERSONAL", "Skills & Certifications", "Research
+    # Interests / Summary", "Tech / Tools") is a real convention this list
+    # can't enumerate every combination of — if either side exactly
+    # matches a known alias on its own, use that side's section rather
+    # than falling through to a weak/no fuzzy match against the whole
+    # compound phrase. The *first* segment wins when both sides happen to
+    # match (mirrors how these headers usually name the primary section
+    # first).
+    if " & " in normalized or " and " in normalized or "/" in normalized:
+        segments = re.split(r"\s*/\s*|\s+(?:&|and)\s+", normalized)
         for segment in segments:
             segment = segment.strip()
             for phrase, canonical in _ALL_HEADER_PHRASES:
@@ -271,139 +305,97 @@ def _is_header_line(line: Line, baseline: float) -> Optional[str]:
     return _fuzzy_header_match(line.text, min_ratio=min_ratio)
 
 
-def _detect_column_boundary(lines: List[Line]) -> Optional[float]:
-    """If `lines` show a clear 2-column ("sidebar") layout — a wide
-    horizontal gap separating two clusters of line start-positions, each
-    holding a meaningful share of the lines — returns the x-coordinate of
-    the gap's midpoint to split on. Returns None for an ordinary
-    single-column page (the overwhelming majority), so nothing here
-    changes behavior for it.
+def _resolve_headers(
+    lines: List[Line], baseline: float, skill_matcher: Optional[SkillMatcher]
+) -> List[Tuple[int, str]]:
+    """Finds every header line and its canonical section, in two passes.
+
+    Pass 1: every line that matches a known alias (`_is_header_line`,
+    unchanged — this is the exact same signal `_reorder_multi_column`'s
+    replacement, `resolve_reading_order`, already used to lay the page
+    out) is a confirmed header immediately, with zero change in behavior
+    from before this function existed. Any OTHER line that merely *looks*
+    header-shaped (`score_heading_candidate`) becomes a "pending"
+    candidate instead of being silently invisible.
+
+    Pass 2: each pending candidate is classified by the actual *content*
+    between it and the next candidate (confirmed or pending) —
+    `classify_by_content` — since no fixed phrase list can enumerate every
+    real resume's header wording. A pending candidate that doesn't
+    classify confidently is dropped entirely, exactly like an
+    unrecognized header always fell back to ordinary body text before.
+
+    Because pass 1 is untouched and pass 2 only ever *adds* headers that
+    were previously invisible, this can only add or improve section
+    boundaries — it cannot change the outcome for any line that already
+    matched an alias.
     """
-    xs = sorted({round(l.x0) for l in lines if l.x0 > 0})
-    if len(xs) < 2:
-        return None
-    best_gap = 0.0
-    best_boundary: Optional[float] = None
-    for a, b in zip(xs, xs[1:]):
-        gap = b - a
-        if gap > best_gap:
-            best_gap = gap
-            best_boundary = (a + b) / 2
-    # A real column gutter is a wide, unambiguous gap — 40pt comfortably
-    # exceeds normal word/indent spacing, which is what would otherwise
-    # produce false positives on an ordinary single-column resume.
-    if best_gap < 40 or best_boundary is None:
-        return None
+    # The candidate's own name is reliably the single largest-font text
+    # anywhere on the page (the same signal contact.py's own name
+    # detection is built on) — which also means it reliably maxes out
+    # every size-based heading signal, regardless of how those signals are
+    # weighted. A real fixture's name got wrongly promoted to a pending
+    # heading candidate this way, emptied its own contact block, and lost
+    # the candidate's name/email/phone/location entirely. Excluding
+    # whatever sits at (or within a hair of) the document's largest font
+    # size mirrors contact.py's own tolerance and closes this off
+    # structurally rather than by ever-finer visual-weight tuning.
+    max_font_size = max((l.font_size for l in lines if l.text.strip()), default=0.0)
 
-    # Line *count* alone isn't reliable: a perfectly single-column resume
-    # that right-aligns a date next to each entry title (an extremely
-    # common convention) produces exactly this kind of x0 gap too — the
-    # date's left edge shifts with its string length, landing far right of
-    # the body text — without being a second column at all. What actually
-    # distinguishes a real sidebar is that *both* sides carry substantial,
-    # comparable prose; a scattering of short right-aligned dates
-    # contributes only a handful of short strings. Weight by total
-    # character count rather than line count to tell them apart.
-    left_chars = sum(len(l.text) for l in lines if l.x0 < best_boundary)
-    right_chars = sum(len(l.text) for l in lines if l.x0 >= best_boundary)
-    total_chars = left_chars + right_chars
-    if total_chars == 0:
-        return None
-    min_share = 0.2 * total_chars
-    if left_chars < min_share or right_chars < min_share:
-        return None
-    return best_boundary
-
-
-def _reorder_multi_column(lines: List[Line], baseline: float) -> List[Line]:
-    """Real-world "sidebar" resume templates (a narrow contact/skills
-    column beside a main content column) are common, and PDF text is
-    frequently *not* drawn in visual reading order at all for them —
-    design tools like Canva often emit text in creation order, not
-    left-to-right/top-to-bottom — so taking PyMuPDF's raw block order at
-    face value interleaves unrelated sections into nonsense. Detects a
-    2-column split per page and reorders each page to:
-      1. the "header zone" shared by both columns — everything above the
-         y-position of the first section-header-like line found anywhere
-         on the page (a name in one column and contact details in the
-         other commonly both land in this zone, even though they're side
-         by side rather than stacked);
-      2. the left column, top to bottom;
-      3. the right column, top to bottom.
-
-    When no column split is detected, the page is still sorted by Y
-    position (row), X (left-to-right within a row) as a general baseline —
-    *not* left in PyMuPDF's raw block order. Some design-tool PDF exports
-    (seen for real: a resume built as absolutely-positioned text boxes)
-    serialize text objects in creation/edit order, which can bear almost
-    no relation to visual reading order even for a genuinely single-column
-    page layout — trusting that order blindly interleaved entire unrelated
-    sections. A right-aligned date next to a title/institution line (same
-    row, larger x0) sorts correctly after it via the x0 tiebreak.
-    """
-    by_page: Dict[int, List[Line]] = {}
-    for l in lines:
-        by_page.setdefault(l.page, []).append(l)
-
-    def sort_key(l: Line) -> Tuple[float, float]:
-        return (round(l.y0), l.x0)
-
-    result: List[Line] = []
-    for page in sorted(by_page):
-        page_lines = by_page[page]
-        boundary = _detect_column_boundary(page_lines)
-        if boundary is None:
-            result.extend(sorted(page_lines, key=sort_key))
+    provisional: List[Tuple[int, Optional[str]]] = []
+    for i, line in enumerate(lines):
+        canonical = _is_header_line(line, baseline)
+        if canonical:
+            provisional.append((i, canonical))
             continue
-
-        page_headers = [l for l in page_lines if _is_header_line(l, baseline)]
-        if not page_headers:
-            result.extend(sorted(page_lines, key=sort_key))
+        if line.font_size >= max_font_size - 0.5:
             continue
+        candidate = score_heading_candidate(line, baseline)
+        if candidate.visual_score >= _MIN_VISUAL_SCORE:
+            provisional.append((i, None))
 
-        # A genuine sidebar template runs *independent* sections in both
-        # columns (e.g. a "Skills" header in a narrow left column, an
-        # "Experience" header in the main right column) — a wide x0 gap
-        # with header(s) on only one side is instead an ordinary
-        # single-column resume that places a date/location label in a
-        # margin column beside each entry's flowing content (or the
-        # mirror case, a right-aligned date): real, but not a second
-        # *column of sections* to reorder onto. Left uncaught, a page like
-        # this bulk-moves the whole margin column before the whole content
-        # column instead of keeping each entry's label next to its own
-        # content — seen for real on a resume whose summary paragraph
-        # happened to sit flush with the date margin, giving that margin
-        # enough characters to otherwise pass the char-count gate above.
-        left_has_header = any(l.x0 < boundary for l in page_headers)
-        right_has_header = any(l.x0 >= boundary for l in page_headers)
-        if not (left_has_header and right_has_header):
-            result.extend(sorted(page_lines, key=sort_key))
+    resolved: List[Tuple[int, str]] = []
+    last_canonical: Optional[str] = None
+    for idx, (i, canonical) in enumerate(provisional):
+        if canonical is not None:
+            resolved.append((i, canonical))
+            last_canonical = canonical
             continue
+        content_start = i + 1
+        content_end = provisional[idx + 1][0] if idx + 1 < len(provisional) else len(lines)
+        classified = classify_by_content(lines[content_start:content_end], skill_matcher)
+        # A pending candidate that classifies to the *same* section as
+        # whatever is already open is never a real second header — it can
+        # only be an entry-label line inside the current section (a
+        # company/institution name, say) that happened to clear the visual
+        # bar too. Promoting it to a header would strip that label line
+        # out of the section body entirely (headers are excluded from
+        # body content), deleting real data the extractor needed — worse
+        # than just leaving it as an unrecognized line the section already
+        # absorbs correctly.
+        if classified and classified != last_canonical:
+            resolved.append((i, classified))
+            last_canonical = classified
+    return resolved
 
-        header_y = min(l.y0 for l in page_headers)
 
-        header_zone = sorted((l for l in page_lines if l.y0 < header_y), key=sort_key)
-        body = [l for l in page_lines if l.y0 >= header_y]
-        left = sorted((l for l in body if l.x0 < boundary), key=sort_key)
-        right = sorted((l for l in body if l.x0 >= boundary), key=sort_key)
-        result.extend(header_zone + left + right)
-
-    return result
-
-
-def segment(lines: List[Line]) -> Segmented:
+def segment(
+    lines: List[Line],
+    page_sizes: Optional[Dict[int, Tuple[float, float]]] = None,
+    skill_matcher: Optional[SkillMatcher] = None,
+) -> Segmented:
     lines = _strip_branding_lines(lines)
     if not lines:
         return Segmented(contact_lines=[], sections=[])
 
     baseline = _body_font_baseline(lines)
-    lines = _reorder_multi_column(lines, baseline)
+    # Real reading order — a page is modeled as vertical bands of 1..N
+    # side-by-side regions (a full-width header, a sidebar+main split, a
+    # later full-width section, all on the same page) rather than one
+    # whole-page "two columns or not" verdict. See app/layout/regions.py.
+    lines = resolve_reading_order(lines, page_sizes or {}, baseline, _is_header_line)
 
-    headers: List[Tuple[int, str]] = []  # (index into lines, canonical section)
-    for i, line in enumerate(lines):
-        canonical = _is_header_line(line, baseline)
-        if canonical:
-            headers.append((i, canonical))
+    headers = _resolve_headers(lines, baseline, skill_matcher)
 
     if not headers:
         return Segmented(contact_lines=lines, sections=[])

@@ -99,6 +99,12 @@ def extract_lines(file_bytes: bytes) -> List[Line]:
                 order=order,
                 font_size=_paragraph_font_size(paragraph),
                 bold=_paragraph_is_bold(paragraph),
+                # DOCX has no cross-paragraph block concept to preserve — each
+                # paragraph is structurally its own block, so block_id just
+                # mirrors order (not a fabricated coordinate; app/layout/
+                # skips spatial region detection for DOCX entirely, see
+                # Line.has_position).
+                block_id=order,
             )
         )
         order += 1

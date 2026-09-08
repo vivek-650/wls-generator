@@ -81,6 +81,37 @@ function cleanLines(lines: string[]): string[] {
   return lines.map((l) => l.trim()).filter(Boolean);
 }
 
+/**
+ * The browser's own `download="..."` attribute only reliably controls the
+ * saved filename for a same-origin link — for a cross-origin Cloudinary
+ * URL (which this always is), most browsers instead use the filename the
+ * server itself reports, which here is the long, UUID-keyed storage path
+ * (`{candidateId}.pdf`, chosen so re-exporting overwrites the same asset
+ * in place rather than accumulating a new file every time — see
+ * cloudinaryClient.ts). Cloudinary's `fl_attachment:<name>` delivery
+ * transformation is the actual fix: it makes Cloudinary set the
+ * Content-Disposition header itself, which every browser honors
+ * regardless of origin. Inserted right after `/upload/`, the same
+ * insertion point `packages/pdf-template`'s `toPdfSafeImageUrl` already
+ * uses for its own delivery-URL transformation.
+ */
+function withAttachmentFilename(url: string, filename: string): string {
+  const marker = "/upload/";
+  const idx = url.indexOf(marker);
+  if (idx === -1) return url;
+  const insertAt = idx + marker.length;
+  const nameWithoutExtension = filename.replace(/\.pdf$/i, "");
+  // Cloudinary parses its own transformation syntax out of this segment —
+  // "." and "," are structural delimiters there (not just filename
+  // characters), so a name like "Dr. Hannah Chen" (period surviving the
+  // earlier whitespace-to-hyphen pass) broke the whole delivery URL with
+  // an HTTP 400 in practice. Percent-encoding doesn't help (Cloudinary
+  // reads the raw transformation string, not a decoded one); stripping
+  // anything but letters/digits/hyphen/underscore does.
+  const safeName = nameWithoutExtension.replace(/[^A-Za-z0-9_-]/g, "") || "resume";
+  return `${url.slice(0, insertAt)}fl_attachment:${safeName}/${url.slice(insertAt)}`;
+}
+
 export default function CandidateDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -265,6 +296,7 @@ export default function CandidateDetailPage() {
   }
 
   const downloadName = `${(fullName || "resume").replace(/\s+/g, "-")}-resume.pdf`;
+  const downloadUrl = latestExport ? withAttachmentFilename(latestExport.pdfUrl, downloadName) : "";
   const linkClasses =
     "inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50";
 
@@ -294,7 +326,7 @@ export default function CandidateDetailPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href={latestExport.pdfUrl} target="_blank" rel="noopener noreferrer" download={downloadName} className={linkClasses}>
+              <a href={downloadUrl} target="_blank" rel="noopener noreferrer" download={downloadName} className={linkClasses}>
                 Download
               </a>
               <SecondaryButton onClick={handleRegenerate} disabled={exporting}>

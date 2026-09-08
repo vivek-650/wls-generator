@@ -21,14 +21,20 @@ _MONTH_YEAR_RE = re.compile(
     re.IGNORECASE,
 )
 _NUMERIC_MONTH_YEAR_RE = re.compile(r"\b(?P<month>0?[1-9]|1[0-2])/(?P<year>(?:19|20)\d{2})\b")
+_ISO_YEAR_MONTH_RE = re.compile(r"\b(?P<year>(?:19|20)\d{2})-(?P<month>0?[1-9]|1[0-2])\b")
 _YEAR_ONLY_RE = re.compile(r"\b(?P<year>(19|20)\d{2})\b")
 _PRESENT_RE = re.compile(r"present|current|till date|ongoing", re.IGNORECASE)
 
 # A date token on either side of a range is either a month name + year
-# ("Jan 2022"), a numeric "MM/YYYY" ("01/2022" — just as common a
-# convention as the month-name form), or a bare year.
+# ("Jan 2022"), a numeric "MM/YYYY" ("01/2022"), ISO "YYYY-MM" ("2022-01" —
+# a real convention on minimalist/tech-styled templates), or a bare year.
+# The ISO form must be tried before the bare-year alternative: alternation
+# tries left to right and stops at the first match, so without this order a
+# "2023-04" token would match only its leading "2023" and leave "-04"
+# dangling, breaking the range separator right after it.
 _DATE_TOKEN = (
     r"(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}"
+    r"|\d{4}-\d{1,2}"
     r"|\d{1,2}/\d{4}"
     r"|\d{4})"
 )
@@ -99,7 +105,8 @@ def is_entry_title_line(line: Line, baseline: float) -> bool:
 
 
 def to_iso_month(token: str) -> Optional[str]:
-    """Convert a "Mon YYYY" or "YYYY" token to ISO "YYYY-MM"/"YYYY" if possible."""
+    """Convert a "Mon YYYY", "MM/YYYY", "YYYY-MM", or "YYYY" token to ISO
+    "YYYY-MM"/"YYYY" if possible."""
     token = token.strip()
     m = _MONTH_YEAR_RE.search(token)
     if m:
@@ -107,6 +114,9 @@ def to_iso_month(token: str) -> Optional[str]:
         year = m.group("year")
         if month:
             return f"{year}-{month:02d}"
+    m = _ISO_YEAR_MONTH_RE.search(token)
+    if m:
+        return f"{m.group('year')}-{int(m.group('month')):02d}"
     m = _NUMERIC_MONTH_YEAR_RE.search(token)
     if m:
         return f"{m.group('year')}-{int(m.group('month')):02d}"
@@ -148,6 +158,9 @@ def parse_lone_date(text: str) -> Optional[str]:
     """
     stripped = text.strip()
     m = _LONE_NUMERIC_DATE_RE.match(stripped)
+    if m:
+        return f"{m.group('year')}-{int(m.group('month')):02d}"
+    m = _ISO_YEAR_MONTH_RE.fullmatch(stripped)
     if m:
         return f"{m.group('year')}-{int(m.group('month')):02d}"
     m = _MONTH_YEAR_RE.fullmatch(stripped.rstrip("."))

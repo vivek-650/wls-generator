@@ -54,14 +54,31 @@ _INSTITUTION_KEYWORDS = (
 )
 
 
+def _contains_keyword(text: str, keywords: tuple) -> bool:
+    """Word-boundary keyword match, not a raw substring check — a naive
+    `kw in text` let the 3-letter degree keyword "mba" match inside the
+    city name "Mu**mba**i" (real bug, hit by a real fixture: "B.Com —
+    University of Mumbai" got institution/degree swapped because
+    "Mumbai" alone was enough to make the *institution* label look like
+    it named an MBA degree). Lookaround instead of `\\b` so a dotted
+    keyword like "b.tech" or "ph.d" still matches correctly (the period
+    itself already isn't a word character, so `\\b` would work too here,
+    but the explicit alnum-boundary check is unambiguous either way).
+    """
+    lowered = text.lower()
+    for kw in keywords:
+        kw = kw.strip()
+        if kw and re.search(rf"(?<![a-z0-9]){re.escape(kw)}(?![a-z0-9])", lowered):
+            return True
+    return False
+
+
 def _looks_like_degree(text: str) -> bool:
-    lowered = f" {text.lower()} "
-    return any(kw in lowered for kw in _DEGREE_KEYWORDS)
+    return _contains_keyword(text, _DEGREE_KEYWORDS)
 
 
 def _looks_like_institution(text: str) -> bool:
-    lowered = f" {text.lower()} "
-    return any(kw in lowered for kw in _INSTITUTION_KEYWORDS)
+    return _contains_keyword(text, _INSTITUTION_KEYWORDS)
 
 
 def _split_degree_field(text: str) -> tuple[Optional[str], Optional[str]]:
@@ -143,6 +160,75 @@ def _institution_and_dates_from_detail(
     start_date = year_strs[0] if len(year_strs) > 1 else None
     end_date = year_strs[-1] if year_strs else None
     return institution, start_date, end_date
+
+
+_TRAILING_PAREN_DATE_RE = re.compile(r"\(\s*(?P<range>[^()]*?(?:19|20)\d{2}[^()]*)\)\s*$")
+
+
+def _extract_single_line_entries(section_lines: List[Line]) -> List[dict]:
+    """Fallback for a section with *zero* formatting distinction between a
+    label line and body text — every line the same size, none bold — so
+    the strict scan above never finds anywhere to start an entry at all
+    (it requires that distinction). Only ever called when the strict pass
+    returned zero entries, so it can never regress a resume that already
+    works via real formatting; treats every non-empty line as one
+    self-contained entry instead, e.g. "Diploma in User Experience Design
+    — National Institute of Design (2020-2021)" — content-classified with
+    the same `_looks_like_degree`/`_looks_like_institution` signals a real
+    label line would be, with a trailing "(...)" pulled off as the date
+    range first.
+    """
+    entries: List[dict] = []
+    for line in section_lines:
+        text = clean_text(line.text)
+        if not text or is_bullet_line(text):
+            continue
+
+        start_date: Optional[str] = None
+        end_date: Optional[str] = None
+        m = _TRAILING_PAREN_DATE_RE.search(text)
+        if m:
+            text = text[: m.start()].strip()
+            start_date, end_date = _extract_dates(m.group("range"))
+
+        parts = [text]
+        for sep in (" – ", " — ", " - "):
+            if sep in text:
+                parts = [clean_text(p) for p in text.split(sep, 1)]
+                break
+
+        degree_idx = next((idx for idx, p in enumerate(parts) if _looks_like_degree(p)), None)
+        institution_idx = None
+        if degree_idx is None:
+            institution_idx = next((idx for idx, p in enumerate(parts) if _looks_like_institution(p)), None)
+
+        if degree_idx is not None:
+            degree, field = _split_degree_field(parts[degree_idx])
+            other = [p for idx, p in enumerate(parts) if idx != degree_idx]
+            institution = other[0] if other else None
+        elif institution_idx is not None:
+            institution = parts[institution_idx]
+            other = [p for idx, p in enumerate(parts) if idx != institution_idx]
+            degree, field = _split_degree_field(other[0]) if other else (None, None)
+        elif len(parts) >= 2:
+            # Neither side reads as either — same source-order default the
+            # strict path's own equivalent case falls back to.
+            institution = parts[0]
+            degree, field = _split_degree_field(parts[1])
+        else:
+            degree, field = _split_degree_field(parts[0])
+            institution = None
+
+        entries.append(
+            {
+                "institution": institution,
+                "degree": degree,
+                "field": field,
+                "startDate": start_date,
+                "endDate": end_date,
+            }
+        )
+    return entries
 
 
 def extract_education(section_lines: List[Line]) -> List[dict]:
@@ -266,5 +352,8 @@ def extract_education(section_lines: List[Line]) -> List[dict]:
                 "endDate": end_date,
             }
         )
+
+    if not entries:
+        return _extract_single_line_entries(section_lines)
 
     return entries

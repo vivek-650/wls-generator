@@ -189,13 +189,29 @@ def _extract_location(lines: List[Line], nlp: Language, name: Optional[str]) -> 
     # pipe glyph between them ("...India• +91...") — spaCy's tokenizer can
     # pull that glyph into the entity span itself since there's no space
     # before it, so trailing non-alphanumeric characters are stripped.
-    places = [
-        stripped
-        for ent in doc.ents
-        if ent.label_ in ("GPE", "LOC")
-        and (stripped := re.sub(r"[^A-Za-z0-9)]+$", "", ent.text.strip()))
-        and stripped.lower() not in name_tokens
-    ]
+    places: List[str] = []
+    for ent in doc.ents:
+        if ent.label_ not in ("GPE", "LOC"):
+            continue
+        # An email address is never a place — spaCy occasionally mistags
+        # one outright as GPE (confirmed against a real fixture: the whole
+        # "name@example.co.uk" string, its ".co.uk" TLD apparently reading
+        # as place-shaped) when it sits in a packed contact line next to a
+        # real location.
+        if "@" in ent.text:
+            continue
+        # spaCy sometimes returns an entire "City, State" mention as one
+        # span with the comma still embedded ("Pune, Maharashtra") rather
+        # than two separate entities — left as one atomic string, it can
+        # never dedupe against the *same* two places found independently
+        # (e.g. by the gazetteer below), producing "Pune, Maharashtra,
+        # India, Maharashtra, Pune" once both are joined. Splitting every
+        # entity on its own internal commas first means every place is
+        # always compared at the same granularity.
+        for part in ent.text.split(","):
+            stripped = re.sub(r"[^A-Za-z0-9)]+$", "", part.strip())
+            if stripped and stripped.lower() not in name_tokens:
+                places.append(stripped)
     places.extend(_gazetteer_places(text, name_tokens))
     if not places:
         return None
