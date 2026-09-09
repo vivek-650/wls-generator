@@ -30,13 +30,19 @@ export async function parseResume(input: ParseFileInput): Promise<ParsedResume> 
 
   if (response.status === 422) {
     let message = "The uploaded file could not be parsed as a resume";
+    let code = "UNPARSEABLE_FILE";
     try {
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as { error?: { message?: string; code?: string } };
       if (body?.error?.message) message = body.error.message;
+      // The parser distinguishes "couldn't read this file at all" from
+      // "read it fine, it just isn't a resume" (NOT_A_RESUME) — forward
+      // its code as-is so the upload UI can show the right notification
+      // instead of a generic parse-failure message.
+      if (body?.error?.code) code = body.error.code;
     } catch {
-      // ignore — fall back to default message
+      // ignore — fall back to default message/code
     }
-    throw AppError.unprocessable(message, "UNPARSEABLE_FILE");
+    throw AppError.unprocessable(message, code);
   }
 
   if (!response.ok) {

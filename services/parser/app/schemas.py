@@ -79,6 +79,10 @@ class ParsedResume(BaseModel):
 
 class ErrorDetail(BaseModel):
     message: str
+    # Machine-readable discriminator ("NOT_A_RESUME" vs "UNPARSEABLE_FILE")
+    # so callers don't have to pattern-match the human-readable message —
+    # see main.py's two 422 branches.
+    code: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):

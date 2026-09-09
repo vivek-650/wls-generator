@@ -43,15 +43,21 @@ export async function uploadCandidate(user: AuthenticatedUser, file: UploadFileI
   const scope = withCompanyScope(user.companyId);
   const sourceFileType = sourceFileTypeFromMimetype(file.mimetype, file.originalname);
 
+  // Validate before storing: the parser is the source of truth on whether
+  // this file is even a resume (see NOT_A_RESUME in parserClient.ts). A
+  // rejected file must never reach Cloudinary — parsing first means a
+  // non-resume upload costs nothing but the parse call, and there's never
+  // a window (however brief) where a wrong file sits in storage waiting to
+  // be cleaned up.
+  const parsed = await parseResume({
+    buffer: file.buffer,
+    filename: file.originalname,
+    mimetype: file.mimetype,
+  });
+
   const uploadedSource = await uploadResumeSource(file.buffer, file.originalname);
 
   try {
-    const parsed = await parseResume({
-      buffer: file.buffer,
-      filename: file.originalname,
-      mimetype: file.mimetype,
-    });
-
     const client = await pool.connect();
     let candidateId: string;
     try {

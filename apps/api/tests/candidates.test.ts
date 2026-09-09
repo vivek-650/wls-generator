@@ -8,6 +8,7 @@ import { pool } from "../src/db/pool";
 import { MINIMAL_PDF_BUFFER, resetDb, uniqueEmail } from "./testHelpers";
 import { SAMPLE_PARSED_RESUME } from "../src/clients/__mocks__/parserClient";
 import * as parserClient from "../src/clients/parserClient";
+import * as cloudinaryClient from "../src/clients/cloudinaryClient";
 
 const app = createApp();
 
@@ -81,6 +82,25 @@ describe("candidate upload + persist + edit + export flow", () => {
       .get("/api/candidates")
       .set("Authorization", `Bearer ${accessToken}`);
     expect(after.body.length).toBe(countBefore);
+  });
+
+  it("rejects a non-resume upload before ever touching storage", async () => {
+    const { AppError } = await import("../src/errors/AppError");
+    jest
+      .spyOn(parserClient, "parseResume")
+      .mockRejectedValueOnce(AppError.unprocessable("This file doesn't look like a resume.", "NOT_A_RESUME"));
+    const uploadSpy = jest.spyOn(cloudinaryClient, "uploadResumeSource");
+
+    const res = await request(app)
+      .post("/api/candidates/upload")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .attach("file", MINIMAL_PDF_BUFFER, { filename: "invoice.pdf", contentType: "application/pdf" });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("NOT_A_RESUME");
+    // The whole point of validating before storing: a rejected file must
+    // never reach Cloudinary, not even transiently.
+    expect(uploadSpy).not.toHaveBeenCalled();
   });
 
   it("lists candidates for the company", async () => {

@@ -22,6 +22,7 @@ from .extractors.experience import extract_experience
 from .extractors.projects import extract_projects
 from .extractors.skills import SkillMatcher, extract_skills
 from .extractors.summary import extract_implicit_summary, extract_summary
+from .resume_confidence import assess_resume_confidence
 from .schemas import ParsedResume, ParsedResumeMeta, SourceFileType
 from .segmentation import segment
 
@@ -34,6 +35,25 @@ _skill_matcher: Optional[SkillMatcher] = None
 class UnparseableFileError(Exception):
     """Raised when the uploaded file cannot be parsed at all (wrong type,
     corrupt, empty). The API layer turns this into a 422."""
+
+
+class NotAResumeError(Exception):
+    """Raised when the file parsed cleanly but doesn't read as a resume at
+    all (see resume_confidence.py) — a different failure mode from
+    `UnparseableFileError` (we read the file fine; it's just not a
+    resume), kept as its own class so server-side logs/metrics can tell
+    the two apart, even though both map to the same 422 response.
+
+    `str(exc)` is the short, user-facing message (shown directly in the
+    upload UI); `.reasons` carries the detailed, per-signal diagnostic
+    trail (see resume_confidence.py) for server-side logs only — keeping
+    the two separate means the banner the candidate-uploader sees doesn't
+    read like a debug dump.
+    """
+
+    def __init__(self, message: str, reasons: Optional[List[str]] = None) -> None:
+        super().__init__(message)
+        self.reasons: List[str] = reasons or []
 
 
 def _get_nlp() -> Language:
@@ -85,7 +105,13 @@ def parse_resume(file_bytes: bytes, source_file_type: SourceFileType) -> ParsedR
     except UnparseableFileError:
         raise
     except Exception as exc:  # noqa: BLE001 - translate any parser-library failure into a 422
-        raise UnparseableFileError(f"Could not parse {source_file_type.value} file: {exc}") from exc
+        # Plain, user-facing message — the raw library exception (`exc`) is
+        # too technical to show whoever just uploaded the file, but it's
+        # preserved via `from exc` so main.py can still log it.
+        raise UnparseableFileError(
+            f"We couldn't read this {source_file_type.value.upper()} file. It may be corrupted or damaged — "
+            "please try re-saving and uploading it again."
+        ) from exc
 
     if not lines:
         raise UnparseableFileError("No extractable text found in the uploaded file.")
@@ -136,7 +162,7 @@ def parse_resume(file_bytes: bytes, source_file_type: SourceFileType) -> ParsedR
     project_lines = _section(seg.sections, "projects")
     projects = extract_projects(project_lines)
 
-    return ParsedResume(
+    result = ParsedResume(
         contact=contact,
         summary=summary,
         skills=skills,
@@ -150,3 +176,23 @@ def parse_resume(file_bytes: bytes, source_file_type: SourceFileType) -> ParsedR
             warnings=warnings,
         ),
     )
+
+    # Every extraction stage has now run — this is the cheapest, most
+    # information-rich point to ask "does this actually read as a resume at
+    # all?" (see resume_confidence.py). A document that isn't a resume at
+    # all is a different failure mode from one we simply couldn't read, so
+    # it's a distinct exception even though both map to the same 422 —
+    # worth keeping separate server-side for logging/metrics.
+    confidence = assess_resume_confidence(
+        result.contact, result.experience, result.education, result.skills, result.certifications, result.projects
+    )
+    if not confidence.is_resume:
+        raise NotAResumeError(
+            # Short and plain on purpose — this is read by whoever just
+            # uploaded the wrong file, not a developer. The full per-signal
+            # breakdown still goes out on `.reasons` for the server log.
+            "This doesn't look like a resume. Please upload a resume file and try again.",
+            reasons=confidence.reasons,
+        )
+
+    return result

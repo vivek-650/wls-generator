@@ -12,7 +12,7 @@ import os
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
-from .pipeline import UnparseableFileError, parse_resume
+from .pipeline import NotAResumeError, UnparseableFileError, parse_resume
 from .schemas import ErrorDetail, ErrorResponse, ParsedResume, SourceFileType
 
 logger = logging.getLogger("parser")
@@ -49,10 +49,25 @@ async def parse(file: UploadFile = File(...)):
     try:
         result = parse_resume(file_bytes, source_file_type)
     except UnparseableFileError as exc:
-        logger.warning("Failed to parse upload %r: %s", filename, exc)
+        # `exc.__cause__` still carries the original library exception (see
+        # the `from exc` in pipeline.py) even though the message shown to
+        # the user has been simplified — log both.
+        logger.warning("Failed to parse upload %r: %s (cause: %r)", filename, exc, exc.__cause__)
         return JSONResponse(
             status_code=422,
-            content=ErrorResponse(error=ErrorDetail(message=str(exc))).model_dump(),
+            content=ErrorResponse(error=ErrorDetail(message=str(exc), code="UNPARSEABLE_FILE")).model_dump(),
+        )
+    except NotAResumeError as exc:
+        # Same 422 response shape as UnparseableFileError, but with its own
+        # `code` so callers (apps/api, then the upload UI) can reliably
+        # branch on "not a resume" without pattern-matching message text.
+        # The detailed per-signal reasons go to the log only — they're
+        # useful for debugging a wrongly-rejected upload but too technical
+        # for the response body.
+        logger.info("Rejected non-resume upload %r: %s (%s)", filename, exc, "; ".join(exc.reasons))
+        return JSONResponse(
+            status_code=422,
+            content=ErrorResponse(error=ErrorDetail(message=str(exc), code="NOT_A_RESUME")).model_dump(),
         )
     except Exception as exc:  # noqa: BLE001 - never let an unexpected error 500 an upload silently
         logger.exception("Unexpected error parsing upload %r", filename)
