@@ -304,6 +304,23 @@ export async function listCandidates(scope: CompanyScope): Promise<CandidateList
   }));
 }
 
+export async function searchCandidates(
+  scope: CompanyScope,
+  query: string,
+  limit = 8
+): Promise<{ id: string; full_name: string; email: string | null }[]> {
+  const result = await pool.query<{ id: string; full_name: string; email: string | null }>(
+    `select id, full_name, email
+       from candidates
+      where company_id = $1 and deleted_at is null
+        and (full_name ilike $2 or email ilike $2)
+      order by full_name asc
+      limit $3`,
+    [scope.companyId, `%${query}%`, limit]
+  );
+  return result.rows;
+}
+
 export async function getCandidateById(scope: CompanyScope, id: string): Promise<Candidate | null> {
   const result = await pool.query<CandidateRow>(
     `select * from candidates where id = $1 and company_id = $2 and deleted_at is null`,

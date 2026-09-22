@@ -13,6 +13,7 @@ import {
   updateCandidate as updateCandidateRow,
 } from "../repositories/candidateRepository";
 import { insertParsedResumeAudit } from "../repositories/parsedResumeRepository";
+import { insertNotification } from "../repositories/notificationRepository";
 import { getCompanyById } from "../repositories/companyRepository";
 import {
   getGeneratedResumeForCandidate,
@@ -78,6 +79,12 @@ export async function uploadCandidate(user: AuthenticatedUser, file: UploadFileI
         projects: parsed.projects,
       });
       await insertParsedResumeAudit(client, candidateId, parsed);
+      await insertNotification(client, {
+        companyId: scope.companyId,
+        type: "candidate_uploaded",
+        title: `New candidate uploaded: ${parsed.contact.fullName ?? "Unknown Candidate"}`,
+        link: `/dashboard/candidates/${candidateId}`,
+      });
       await client.query("commit");
     } catch (err) {
       await client.query("rollback");

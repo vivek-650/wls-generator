@@ -44,6 +44,14 @@ export async function getCompanySummaryById(companyId: string): Promise<AdminCom
   return result.rows[0] ? toSummary(result.rows[0]) : null;
 }
 
+export async function searchCompanies(query: string, limit = 8): Promise<{ id: string; name: string }[]> {
+  const result = await pool.query<{ id: string; name: string }>(
+    `select id, name from companies where name ilike $1 order by name asc limit $2`,
+    [`%${query}%`, limit]
+  );
+  return result.rows;
+}
+
 export async function getPlatformStats(): Promise<PlatformStats> {
   const result = await pool.query<{
     total_companies: string;

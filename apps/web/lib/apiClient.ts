@@ -8,8 +8,10 @@ import type {
   Company,
   GeneratedResume,
   LoginRequest,
+  NotificationListResponse,
   PlatformStats,
   RegisterRequest,
+  SearchResponse,
   UpdateBrandingRequest,
   UpdateCandidateRequest,
   UpdateCompanyStatusRequest,
@@ -178,6 +180,16 @@ export const candidatesApi = {
   export: (id: string) =>
     request<GeneratedResume>(`/candidates/${id}/export`, { method: "POST" }),
   getExport: (id: string) => request<GeneratedResume | null>(`/candidates/${id}/export`),
+};
+
+export const searchApi = {
+  query: (q: string) => request<SearchResponse>(`/search?q=${encodeURIComponent(q)}`),
+};
+
+export const notificationsApi = {
+  list: () => request<NotificationListResponse>("/notifications"),
+  markRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: "POST" }),
+  markAllRead: () => request<void>("/notifications/read-all", { method: "POST" }),
 };
 
 export const adminApi = {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ParsedCertificationEntry } from "@wlr/shared-types";
+import { Plus } from "lucide-react";
 import { DangerButton, SecondaryButton, TextInput } from "../FormField";
 
 const emptyEntry: ParsedCertificationEntry = {
@@ -29,9 +30,9 @@ export function CertificationsEditor({
   return (
     <div className="space-y-4">
       {value.map((entry, i) => (
-        <div key={i} className="rounded-md border border-gray-200 p-4">
+        <div key={i} className="border border-slate-200 p-4">
           <div className="flex items-start justify-between gap-4">
-            <div className="grid flex-1 grid-cols-3 gap-3">
+            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
               <TextInput
                 label="Name"
                 value={entry.name}
@@ -56,7 +57,7 @@ export function CertificationsEditor({
         </div>
       ))}
       <SecondaryButton type="button" onClick={add}>
-        + Add certification
+        <Plus className="h-4 w-4" aria-hidden="true" /> Add certification
       </SecondaryButton>
     </div>
   );

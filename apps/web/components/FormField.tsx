@@ -1,4 +1,5 @@
 import { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { Button } from "./ui/button";
 
 interface FieldWrapperProps {
   label: string;
@@ -9,14 +10,14 @@ interface FieldWrapperProps {
 export function FieldWrapper({ label, htmlFor, children }: FieldWrapperProps) {
   return (
     <label htmlFor={htmlFor} className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>
   );
 }
 
 const inputClass =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 
 export function TextInput({
   label,
@@ -44,18 +45,19 @@ export function TextAreaField({
   );
 }
 
+// Thin wrappers around shadcn's `Button` (components/ui/button.tsx) that
+// preserve this app's existing three-variant API — every call site across
+// the app keeps working unchanged.
+
 export function PrimaryButton({
   children,
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      className={`inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-      {...props}
-    >
+    <Button variant="default" className={`gap-2 ${className}`} {...props}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -65,12 +67,9 @@ export function SecondaryButton({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      className={`inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-      {...props}
-    >
+    <Button variant="outline" className={`gap-2 ${className}`} {...props}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -80,11 +79,8 @@ export function DangerButton({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      className={`inline-flex items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-      {...props}
-    >
+    <Button variant="destructive" size="sm" className={`gap-2 ${className}`} {...props}>
       {children}
-    </button>
+    </Button>
   );
 }

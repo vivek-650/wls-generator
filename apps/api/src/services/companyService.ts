@@ -11,6 +11,7 @@ import {
   listCompanyUsers,
   toAuthUser,
 } from "../repositories/userRepository";
+import { insertNotification } from "../repositories/notificationRepository";
 import { uploadCompanyLogo } from "../clients/cloudinaryClient";
 import { AuthenticatedUser } from "./candidateService";
 
@@ -72,6 +73,12 @@ export async function createCompanyUser(
       passwordHash,
       name: data.name,
       role: "COMPANY_MEMBER",
+    });
+    await insertNotification(client, {
+      companyId: scope.companyId,
+      type: "teammate_joined",
+      title: `${data.name} joined the workspace`,
+      link: "/dashboard/settings/team",
     });
     await client.query("commit");
     return toAuthUser(newUser);

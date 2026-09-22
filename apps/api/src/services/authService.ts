@@ -13,6 +13,7 @@ import {
   revokeRefreshTokenByHash,
 } from "../repositories/refreshTokenRepository";
 import { createUser, findUserByEmail, findUserById, toAuthUser, UserRow } from "../repositories/userRepository";
+import { insertNotification } from "../repositories/notificationRepository";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -71,6 +72,12 @@ export async function register(input: RegisterRequest): Promise<TokenPair> {
       passwordHash,
       name: input.name,
       role: "COMPANY_ADMIN",
+    });
+    await insertNotification(client, {
+      companyId: null,
+      type: "company_registered",
+      title: `${input.companyName} registered`,
+      link: `/admin/companies/${company.id}`,
     });
     await client.query("commit");
     return issueTokenPair(user);

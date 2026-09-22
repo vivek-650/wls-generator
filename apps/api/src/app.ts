@@ -8,6 +8,8 @@ import companyRoutes from "./routes/company.routes";
 import candidatesRoutes from "./routes/candidates.routes";
 import adminRoutes from "./routes/admin.routes";
 import healthRoutes from "./routes/health.routes";
+import searchRoutes from "./routes/search.routes";
+import notificationsRoutes from "./routes/notifications.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -25,6 +27,8 @@ export function createApp(): Express {
   app.use("/api/company", companyRoutes);
   app.use("/api/candidates", candidatesRoutes);
   app.use("/api/admin", adminRoutes);
+  app.use("/api/search", searchRoutes);
+  app.use("/api/notifications", notificationsRoutes);
   app.use("/api/health", healthRoutes);
 
   app.use(notFoundHandler);

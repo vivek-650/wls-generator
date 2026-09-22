@@ -1,4 +1,5 @@
 import { AdminCompanyDetail, AdminCompanySummary, CompanyStatus, PlatformStats } from "@wlr/shared-types";
+import { pool } from "../db/pool";
 import { AppError } from "../errors/AppError";
 import {
   getCompanySummaryById,
@@ -7,6 +8,7 @@ import {
 } from "../repositories/adminRepository";
 import { listCandidates } from "../repositories/candidateRepository";
 import { getCompanyById, updateCompanyStatus as updateCompanyStatusRow } from "../repositories/companyRepository";
+import { insertNotification } from "../repositories/notificationRepository";
 import { listCompanyUsers } from "../repositories/userRepository";
 import { withCompanyScope } from "../repositories/withCompanyScope";
 
@@ -52,6 +54,11 @@ export async function updateCompanyStatus(companyId: string, status: CompanyStat
   if (!updated) {
     throw AppError.notFound("Company not found");
   }
+  await insertNotification(pool, {
+    companyId,
+    type: "company_status_changed",
+    title: `Your workspace was ${status === "active" ? "activated" : "deactivated"}`,
+  });
   const summary = await getCompanySummaryById(companyId);
   if (!summary) {
     throw AppError.notFound("Company not found");

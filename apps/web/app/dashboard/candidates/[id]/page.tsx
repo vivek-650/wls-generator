@@ -8,6 +8,7 @@ import { ProjectsEditor } from "@/components/candidate/ProjectsEditor";
 import { SkillsEditor } from "@/components/candidate/SkillsEditor";
 import { PrimaryButton, SecondaryButton, TextAreaField, TextInput } from "@/components/FormField";
 import { FullPageSpinner, Spinner } from "@/components/Spinner";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ApiError, candidatesApi, companyApi } from "@/lib/apiClient";
 import { consumeUploadWarnings } from "@/lib/uploadWarnings";
 import type {
@@ -22,6 +23,7 @@ import type {
   ParsedSkill,
   UpdateCandidateRequest,
 } from "@wlr/shared-types";
+import { AlertTriangle, ArrowLeft, Download, RotateCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -287,7 +289,7 @@ export default function CandidateDetailPage() {
   if (notFound) {
     return (
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-lg font-medium text-gray-900">Candidate not found</p>
+        <p className="text-base font-medium text-slate-900">Candidate not found</p>
         <SecondaryButton className="mt-4" onClick={() => router.push("/dashboard")}>
           Back to candidates
         </SecondaryButton>
@@ -298,58 +300,57 @@ export default function CandidateDetailPage() {
   const downloadName = `${(fullName || "resume").replace(/\s+/g, "-")}-resume.pdf`;
   const downloadUrl = latestExport ? withAttachmentFilename(latestExport.pdfUrl, downloadName) : "";
   const linkClasses =
-    "inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50";
+    "inline-flex items-center justify-center gap-2 rounded-sm border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50";
 
   return (
-    <div className={`mx-auto space-y-6 pb-16 ${viewMode === "preview" ? "max-w-5xl" : "max-w-3xl"}`}>
+    <div className={`mx-auto space-y-5 pb-16 ${viewMode === "preview" ? "max-w-5xl" : "max-w-3xl"}`}>
       <div>
         <button
           onClick={() => router.push("/dashboard")}
-          className="text-sm text-gray-500 hover:text-gray-700"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
-          ← Back to candidates
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to candidates
         </button>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">
-          {fullName || "Untitled candidate"}
-        </h1>
+        <h1 className="mt-1 text-lg font-semibold text-slate-900">{fullName || "Untitled candidate"}</h1>
       </div>
 
       {loadError && <ErrorBanner message={loadError} />}
 
       {viewMode === "preview" && latestExport ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
-              <p className="text-sm font-medium text-gray-900">This is the resume your client will receive</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm font-medium text-slate-900">This is the resume your client will receive</p>
+              <p className="text-xs text-slate-500">
                 Last generated {new Date(latestExport.updatedAt).toLocaleString()}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <a href={downloadUrl} target="_blank" rel="noopener noreferrer" download={downloadName} className={linkClasses}>
-                Download
+                <Download className="h-4 w-4" aria-hidden="true" /> Download
               </a>
               <SecondaryButton onClick={handleRegenerate} disabled={exporting}>
-                {exporting && <Spinner className="h-4 w-4" />}
+                {exporting ? <Spinner className="h-4 w-4" /> : <RotateCw className="h-4 w-4" aria-hidden="true" />}
                 {exporting ? "Regenerating..." : "Regenerate PDF"}
               </SecondaryButton>
               <PrimaryButton onClick={() => setViewMode("edit")}>Edit info</PrimaryButton>
             </div>
-          </div>
+          </Card>
 
           {exportError && <ErrorBanner message={exportError} />}
 
           {warnings.length > 0 && (
             <button
               onClick={() => setViewMode("edit")}
-              className="block w-full rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 hover:bg-amber-100"
+              className="flex w-full items-center gap-2 border border-amber-200 bg-amber-50 px-4 py-2.5 text-left text-sm text-amber-800 hover:bg-amber-100"
             >
-              ⚠ {warnings.length} field{warnings.length === 1 ? "" : "s"} the parser flagged for review — click to
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {warnings.length} field{warnings.length === 1 ? "" : "s"} the parser flagged for review — click to
               edit
             </button>
           )}
 
-          <div className="h-[85vh] overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+          <div className="h-[85vh] overflow-hidden border border-slate-200 bg-slate-100">
             {company ? (
               <ResumePdfPreview candidate={buildPreviewCandidate()} company={company} />
             ) : (
@@ -358,78 +359,78 @@ export default function CandidateDetailPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-5">
           {latestExport && (
             <button
               onClick={() => setViewMode("preview")}
-              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
             >
-              ← Back to preview
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to preview
             </button>
           )}
 
           <WarningBanner title="The parser flagged the following — please double-check:" items={warnings} />
           {saveExportError && <ErrorBanner message={saveExportError} />}
 
-          <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Contact</h2>
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <TextInput label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-          <TextInput label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <TextInput label="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Contact" />
+            <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextInput label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+              <TextInput label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <TextInput label="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+            </CardBody>
+          </Card>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Summary</h2>
-        <div className="mt-4">
-          <TextAreaField
-            label=""
-            rows={4}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="Professional summary..."
-          />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Summary" />
+            <CardBody>
+              <TextAreaField
+                label=""
+                rows={4}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="Professional summary..."
+              />
+            </CardBody>
+          </Card>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Skills</h2>
-        <div className="mt-4">
-          <SkillsEditor value={skills} onChange={setSkills} />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Skills" />
+            <CardBody>
+              <SkillsEditor value={skills} onChange={setSkills} />
+            </CardBody>
+          </Card>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Experience</h2>
-        <div className="mt-4">
-          <ExperienceEditor value={experience} onChange={setExperience} />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Experience" />
+            <CardBody>
+              <ExperienceEditor value={experience} onChange={setExperience} />
+            </CardBody>
+          </Card>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Education</h2>
-        <div className="mt-4">
-          <EducationEditor value={education} onChange={setEducation} />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Education" />
+            <CardBody>
+              <EducationEditor value={education} onChange={setEducation} />
+            </CardBody>
+          </Card>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-base font-semibold text-gray-900">Certifications</h2>
-        <div className="mt-4">
-          <CertificationsEditor value={certifications} onChange={setCertifications} />
-        </div>
-      </section>
+          <Card>
+            <CardHeader title="Certifications" />
+            <CardBody>
+              <CertificationsEditor value={certifications} onChange={setCertifications} />
+            </CardBody>
+          </Card>
 
-          <section className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="text-base font-semibold text-gray-900">Projects</h2>
-            <div className="mt-4">
+          <Card>
+            <CardHeader title="Projects" />
+            <CardBody>
               <ProjectsEditor value={projects} onChange={setProjects} />
-            </div>
-          </section>
+            </CardBody>
+          </Card>
 
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
             {latestExport && (
               <SecondaryButton onClick={() => setViewMode("preview")} disabled={busy}>
                 Cancel
